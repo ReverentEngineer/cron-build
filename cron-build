@@ -1,0 +1,285 @@
+#!/usr/bin/env perl
+
+=head1 NAME
+
+cron-build
+
+=head1 SYNOPSIS
+
+cron-build [ F<repo_file> ]
+
+=head1 DESCRIPTION
+
+B<cron-build> runs script all the branches of a git repository and keeps 
+track of their last status. The configuration is performed with two files.
+
+=over 4
+
+=item The F<repo_list> expected to be in the form:
+
+<NAME> <TAB> <URL> <TAB> <SCRIPT> <NEWLINE>
+
+=back
+
+The F<config_file> is only necessary for mail notifications.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--config>=F<config_file>
+
+Configuration file
+
+=item B<--jobs>=F<count>
+
+Number of concurrent builds to run.
+
+=item B<--mailto>=F<recipients>
+
+Recipients to mail build status.
+
+=item B<--verbose>
+
+Enables verbose output
+
+=back
+
+=head1 CONFIGURATION FILE
+
+=over 4
+
+=item B<Values>
+
+=over 4 
+
+=item mailhost
+
+The hostname of the SMTP server
+
+=item mailfrom
+
+The sender of mail notifications
+
+=item mailuser
+
+The name of the user account on the SMTP server
+
+=item mailpass
+
+The password to the user account on the SMPT server
+
+=back
+
+=back
+
+=head1 EXAMPLES
+
+=over 4
+
+=item Given a F<repo_file> like this:
+
+
+cron-build    https://github.com/ReverentEngineer/cron-build    make
+
+=back
+
+B<cron-build> would clone I<https://github.com/ReverentEngineer/cron-build> and run B<make>.
+The name is used for logging purposing and mail notifications.
+
+=over 4
+
+=item Given a F<config_file> like this:
+
+
+mailhost=localhost
+mailfrom=root
+
+=back
+
+B<cron-build> will send notifications using the local SMTP server.
+
+=head1 AUTHORS
+
+Jeff Caffrey-Hill <jeff@reverentengineer.com>
+
+=cut
+
+use strict;
+use warnings;
+use threads;
+use threads::shared;
+use Cwd;
+use File::Temp qw/mkdtemp/;
+use Getopt::Long;
+use Git;
+use Net::SMTP;
+use Thread::Queue;
+
+my $builds = Thread::Queue->new(); 
+my $lineno = 1;
+my @threads = ();
+my $cwd = getcwd;
+my $cache_file = $cwd."/.cron-build.cache";
+my $cache :shared = "";
+
+my @recipients :shared = ();
+my $mailfrom;
+my $mailhost;
+my $mailuser;
+my $mailpass;
+
+my $thread_count = 1;
+my $config;
+my $mailto;
+my $verbose;
+
+GetOptions ("jobs=i" => \$thread_count,
+            "mailto=s" => \$mailto,
+            "config=s", => \$config,
+            "verbose", => \$verbose);
+
+
+if (open my $fh, '<', $cache_file) {
+  $cache = do { local $/; <$fh> };
+}
+
+if (defined($config)) {
+  open my $fh, '<', $config or die("Couldn't open config file: $!");
+  while (<$fh>) {
+    if ($_ =~ /^[\s]*([\w]+)[\s]*=[\s]*([\w+:\d]+)[\s]*$/) {
+      my ($key, $value) = ($1, $2);
+      if ($key eq "mailhost") {
+        $mailhost = $value;
+      } elsif ($key eq "mailfrom") {
+        $mailfrom = $value;
+      } elsif ($key eq "mailuser") {
+        $mailuser = $value;
+      } elsif ($key eq "mailpass") {
+        $mailuser = $value;
+      } else {
+        die("Invalid config key.");
+      }
+    } elsif ($_ =~ /^[\s]*[^\s]+[\s]*$/) {
+      die("Error parsing config file.\n"); 
+    }
+  }
+}
+
+
+sub send_status {
+  my ($name, $branch, $status,  $diff) = @_;
+   
+  my $subject = "[cron-build] project: $name - branch: $branch - build status: $status\n\n";
+  my $body = "A build of the $branch branch of $name was triggered.\n\n";
+  $body .= "Build status: $status\n\n";
+  $body .= "$diff";
+  print($body);
+  if (@recipients and $mailfrom and $mailhost) {
+    my $smtp = Net::SMTP->new($mailhost);
+    $smtp->mail($mailfrom);
+
+    if (defined($mailuser) and defined($mailpass)) {
+      $smtp->auth($mailuser, $mailpass);
+    }
+
+    $smtp->recipient(@recipients);
+    $smtp->data();
+    $smtp->datasend("To: ".join(",", @recipients)."\n");
+    $smtp->datasend("Subject: $subject\n");
+    $smtp->datasend("\n");
+    $smtp->datasend("$body");
+    $smtp->dataend();
+  } elsif ($verbose) {
+    print "No recipients provided. Not sending status.\n";
+  }
+}
+
+sub set_cache {
+  my ($url, $branch, $hash, $status) = @_;
+  lock($cache);
+  if ($cache =~ s/$url\t$branch\t[^\0\s]+\t[^\0\s]+/$url\t$branch\t$hash\t$status/) {
+    # Do nothing
+  } else {
+    $cache .= $url."\t".$branch."\t".$hash."\t".$status."\n";
+  }
+}
+
+sub get_cache {
+  my ($url, $branch) = @_;
+  lock($cache);
+  my ($hash, $status) = (undef, undef);
+  
+  if ($cache =~ /$url\t$branch\t([^\0\s]+)\t([^\0\t]+)/) {
+    ($hash, $status) = ( $1, $2 );
+  }
+
+  return ($hash, $status);
+}
+
+
+for (my $i = 0; $i < $thread_count; $i++) { 
+  push @threads, threads->create(
+    sub {
+      while (defined(my $build_ptr = $builds->dequeue())) {
+        my %build = %$build_ptr;
+        my $workdir = mkdtemp("/tmp/".$build{name}."-".$build{branch}.".XXXXXX");
+        Git::command("clone", "--branch", $build{branch}, $build{url}, $workdir);
+        chdir($workdir);
+        my $repo = Git->repository;
+        my $diff = $repo->command('log', '--decorate=no', '--oneline', '--no-color');
+        print($diff);
+        if (system($build{script}) == 0) {
+          print("Build of '".$build{branch}."' branch of '".$build{url}."' succeeded.\n");
+          set_cache($build{url}, $build{branch}, $build{hash}, "success");
+          send_status($build{name}, $build{branch}, "success", $diff);
+        } else {
+          print("Build of '".$build{branch}."' branch of '".$build{url}."' failed.\n");
+          set_cache($build{url}, $build{branch}, $build{hash}, "failure");
+          send_status($build{name}, $build{branch}, "failure", $diff);
+        }
+        chdir($cwd);
+        rmdir($workdir);
+      }
+    }
+  );
+}
+
+while(<>) {
+  if ($_ =~ /^[\s]*([\w\-]+)[\s]+([^0\s]+)[\s]+([^0]+)/) {
+    my ($name, $url, $script) = ($1, $2, $3);
+    my $heads = Git::command('ls-remote', '-h', $url);
+    for my $head ($heads) {
+      if ($head =~ /([a-f0-9]{40})[\s]+refs\/heads\/(.*)$/) {
+        my ($hash, $branch) = ( $1, $2 );
+        my %build;
+        $build{name} = $name;
+        $build{url} = $url;
+        $build{script} = $script;
+        $build{branch} = $branch;
+        $build{hash} = $hash;
+        my ($cached_hash) = get_cache($url, $branch);
+        if (!defined($cached_hash) or $cached_hash ne $hash) {
+          $builds->enqueue(\%build);
+        } else {
+          print "No change to $build{branch} branch of $build{name}";
+        }
+      }
+    }
+
+  } else {
+    print STDERR $_;
+    print STDERR "Error on line number ".$lineno;    
+  }
+  $lineno++;
+}
+
+$builds->end();
+for my $thread (@threads) {
+  $thread->join();
+}
+
+
+if (open my $fh, '>', $cache_file) {
+  print $fh $cache;
+}
