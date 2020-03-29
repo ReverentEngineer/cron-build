@@ -6,7 +6,7 @@ cron-build
 
 =head1 SYNOPSIS
 
-cron-build [ F<repo_file> ]
+cron-build [options] [F<repo_file>]
 
 =head1 DESCRIPTION
 
@@ -114,6 +114,7 @@ use File::Temp qw/mkdtemp/;
 use Getopt::Long;
 use Git;
 use Net::SMTP;
+use Pod::Usage;
 use Thread::Queue;
 
 my $builds = Thread::Queue->new(); 
@@ -133,12 +134,19 @@ my $thread_count = 1;
 my $config;
 my $mailto;
 my $verbose;
+my $help;
 
-GetOptions ("jobs=i" => \$thread_count,
+GetOptions ("help" => \$help,
+            "jobs=i" => \$thread_count,
             "mailto=s" => \$mailto,
             "config=s", => \$config,
             "verbose", => \$verbose);
 
+
+if ($help) {
+  pod2usage( { -verbose => 1 } );
+  exit(0);
+}
 
 if (open my $fh, '<', $cache_file) {
   $cache = do { local $/; <$fh> };
