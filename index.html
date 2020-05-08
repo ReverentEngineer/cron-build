@@ -1,0 +1,162 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>cron-build</title>
+<link rel="stylesheet" href="style.css" type="text/css" />
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:brew@catalina.local" />
+</head>
+
+<body>
+<table border="0" width="100%" cellspacing="0" cellpadding="3">
+<tr><td class="_podblock_" valign="middle">
+<big><strong><span class="_podblock_">&nbsp;cron-build</span></strong></big>
+</td></tr>
+</table>
+
+
+
+<ul id="index">
+  <li><a href="#NAME">NAME</a></li>
+  <li><a href="#SYNOPSIS">SYNOPSIS</a></li>
+  <li><a href="#DESCRIPTION">DESCRIPTION</a></li>
+  <li><a href="#OPTIONS">OPTIONS</a></li>
+  <li><a href="#CONFIGURATION-FILE">CONFIGURATION FILE</a></li>
+  <li><a href="#EXAMPLES">EXAMPLES</a></li>
+  <li><a href="#AUTHORS">AUTHORS</a></li>
+</ul>
+
+<h1 id="NAME">NAME</h1>
+
+<p>cron-build</p>
+
+<h1 id="SYNOPSIS">SYNOPSIS</h1>
+
+<p>cron-build [options] [<i>repo_file</i>]</p>
+
+<h1 id="DESCRIPTION">DESCRIPTION</h1>
+
+<p><b>cron-build</b> runs script all the branches of a git repository and keeps track of their last status. The configuration is performed with two files.</p>
+
+<dl>
+
+<dt id="The-repo_list-expected-to-be-in-the-form">The <i>repo_list</i> expected to be in the form:</dt>
+<dd>
+
+<p>&lt;NAME&gt; &lt;TAB&gt; &lt;URL&gt; &lt;TAB&gt; &lt;SCRIPT&gt; &lt;NEWLINE&gt;</p>
+
+</dd>
+</dl>
+
+<p>The <i>config_file</i> is only necessary for mail notifications.</p>
+
+<h1 id="OPTIONS">OPTIONS</h1>
+
+<dl>
+
+<dt id="config-config_file"><b>--config</b>=<i>config_file</i></dt>
+<dd>
+
+<p>Configuration file</p>
+
+</dd>
+<dt id="jobs-count"><b>--jobs</b>=<i>count</i></dt>
+<dd>
+
+<p>Number of concurrent builds to run.</p>
+
+</dd>
+<dt id="mailto-recipients"><b>--mailto</b>=<i>recipients</i></dt>
+<dd>
+
+<p>Recipients to mail build status.</p>
+
+</dd>
+<dt id="verbose"><b>--verbose</b></dt>
+<dd>
+
+<p>Enables verbose output</p>
+
+</dd>
+</dl>
+
+<h1 id="CONFIGURATION-FILE">CONFIGURATION FILE</h1>
+
+<dl>
+
+<dt id="Values"><b>Values</b></dt>
+<dd>
+
+<dl>
+
+<dt id="mailhost">mailhost</dt>
+<dd>
+
+<p>The hostname of the SMTP server</p>
+
+</dd>
+<dt id="mailfrom">mailfrom</dt>
+<dd>
+
+<p>The sender of mail notifications</p>
+
+</dd>
+<dt id="mailuser">mailuser</dt>
+<dd>
+
+<p>The name of the user account on the SMTP server</p>
+
+</dd>
+<dt id="mailpass">mailpass</dt>
+<dd>
+
+<p>The password to the user account on the SMPT server</p>
+
+</dd>
+</dl>
+
+</dd>
+</dl>
+
+<h1 id="EXAMPLES">EXAMPLES</h1>
+
+<dl>
+
+<dt id="Given-a-repo_file-like-this">Given a <i>repo_file</i> like this:</dt>
+<dd>
+
+<p>cron-build https://github.com/ReverentEngineer/cron-build make</p>
+
+</dd>
+</dl>
+
+<p><b>cron-build</b> would clone <i>https://github.com/ReverentEngineer/cron-build</i> and run <b>make</b>. The name is used for logging purposing and mail notifications.</p>
+
+<dl>
+
+<dt id="Given-a-config_file-like-this">Given a <i>config_file</i> like this:</dt>
+<dd>
+
+<p>mailhost=localhost mailfrom=root</p>
+
+</dd>
+</dl>
+
+<p><b>cron-build</b> will send notifications using the local SMTP server.</p>
+
+<h1 id="AUTHORS">AUTHORS</h1>
+
+<p>Jeff Caffrey-Hill &lt;jeff@reverentengineer.com&gt;</p>
+
+<table border="0" width="100%" cellspacing="0" cellpadding="3">
+<tr><td class="_podblock_" valign="middle">
+<big><strong><span class="_podblock_">&nbsp;cron-build</span></strong></big>
+</td></tr>
+</table>
+
+</body>
+
+</html>
+
+
