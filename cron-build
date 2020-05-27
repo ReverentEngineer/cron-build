@@ -182,7 +182,6 @@ sub send_status {
   my $body = "A build of the $branch branch of $name was triggered.\n\n";
   $body .= "Build status: $status\n\n";
   $body .= "$diff";
-  print($body);
   if (@recipients and $mailfrom and $mailhost) {
     my $smtp = Net::SMTP->new($mailhost);
     $smtp->mail($mailfrom);
@@ -236,7 +235,6 @@ for (my $i = 0; $i < $thread_count; $i++) {
         chdir($workdir);
         my $repo = Git->repository;
         my $diff = $repo->command('log', '--decorate=no', '--oneline', '--no-color');
-        print($diff);
         if (system($build{script}) == 0) {
           print("Build of '".$build{branch}."' branch of '".$build{url}."' succeeded.\n");
           set_cache($build{url}, $build{branch}, $build{hash}, "success");
